@@ -1,188 +1,115 @@
-# Tübitak — Simülasyon Versiyonu
+<div align="center">
+  <h1>🚀 Sabit Kanatlı İHA Otonom Takip Sistemi</h1>
+  <p><b>Gelişmiş Taktiksel Güdüm (Predictive Tracking), TECS ve YOLO Tabanlı Görsel Savaş Vizörü (OSD) İçeren ROS 2 - PX4 Arayüzü</b></p>
 
-> YOLO11 + OpenCV Tracker + Kalman Filter  
-> Gazebo / ROS2 entegrasyonuna hazır tek-fonksiyon arayüzü
+  [![ROS 2](https://img.shields.io/badge/ROS_2-Humble-blue.svg?logo=ros)](https://docs.ros.org/en/humble/index.html)
+  [![PX4](https://img.shields.io/badge/PX4-Autopilot-154df0.svg?logo=px4)](https://px4.io/)
+  [![OpenCV](https://img.shields.io/badge/OpenCV-Python-5C3EE8.svg?logo=opencv)](https://opencv.org/)
+  [![Gazebo](https://img.shields.io/badge/Gazebo-Simulation-orange.svg?logo=gazebo)](https://gazebosim.org/home)
 
----
+</div>
 
-## 📁 Klasör Yapısı
+## 📖 Proje Özeti
+Bu proje, ROS 2 (Humble) ve PX4 DDS (MicroXRCEAgent) mimarisi üzerine kurulu, askeri standartlarda otonom bir **Sabit Kanatlı İHA İt Dalaşı (Dogfight) ve Gözlem** sistemidir. 
 
-```
-Tübitak_sim/
-│
-├── nesne_tespit.py          ★ ANA ENTEGRASYON NOKTASI
-│
-├── detection_core/          (iç modüller — doğrudan dokunmayın)
-│   ├── detector.py          YOLO11 tespit motoru
-│   ├── tracker.py           OpenCV RobustTracker (MOSSE/KCF/CSRT)
-│   ├── kalman_filter.py     Konum yumuşatma + ileriye tahmin
-│   └── config.py            ★ Tüm ayarlar buradan değiştirilir
-│
-├── sim_test.py              Webcam/video ile yerel test
-├── gazebo_test.py           Gazebo bağlantısız standalone test (PID simülasyonu)
-├── ros2_node.py             ROS2 Node (Gazebo entegrasyonu)
-│
-├── yolo11m-uav.pt           Model dosyası (setup.bat ile kopyalanır)
-├── requirements.txt
-└── setup.bat
-```
+**Reaktif** (kaçıp kovalayan) sistemlerin hantallığını aşmak için; bu mimaride havacılık literatüründeki **CTRV (Constant Turn Rate and Velocity)** öngörü modelleri ve **L1 Vektör Güdümü** uygulanmıştır. Sistem, hedef kameradan kopsa bile GPS üzerinden hedefin o anki durumuna göre 2 saniye sonra nerede olacağını hesaplayıp o noktaya kilitlenir.
 
 ---
 
-## ⚡ Hızlı Başlangıç
+## 🌟 Öne Çıkan Özellikler
 
-### 1. Kurulum
+### 🎯 1. Predictive Trajectory Tracking (Kestirimci Güdüm)
+Sistem hedefin *şu anki* değil, hızını ve dönüş oranını (Yaw Rate) analiz ederek **gelecekteki** rotasını tahmin eder. Hedef manevra yaptığında avcı İHA virajı dışarıdan almak yerine, merminin gideceği yeri hesaplarcasına doğrudan hedefin önüne/merkezine uçar.
+
+### 🦅 2. Pure Pursuit & L1 Vektör Rotalaması
+Kol uçuşunu (yan yana uçmayı) engelleyen ve burnu doğrudan hedefin merkezine yönelten "Odaklı" (Look-At) ağırlıklandırma katsayısı (%95) kullanılmıştır. Uçak, Hedefin rotasına sızarken keskin savrulmaları önleyen L1 algoritması ile pamuk gibi yumuşak bir giriş yapar (Bumpless Transfer).
+
+### 🕹️ 3. TECS (Total Energy Control System)
+Avcı İHA'nın yüksek irtifadan dalarken yerçekimi yüzünden kontrolden çıkmasını önleyen basitleştirilmiş bir enerji yönetim sistemidir. Uçak hedefin altında/üstünde kalarak sadece "Elevatör" (burun) hareketleri değil, gazı (Thrust) irtifa ve çekime göre **dinamik olarak (%0.05 - %0.85)** ayarlar.
+
+### 🛑 4. Aktif Hava Freni (Airbrake) & Tailgating Koruması
+Overshoot (Öne geçme) probleminin son noktası! Uçak hedefe 60 metreden fazla yaklaşıp hızı 60 km/h sınırını aşarsa sistem gazı doğrudan **0.0 (Tamamen Kapalı)** konumuna çeker. Uçak hava sürtünmesiyle güvenli 50 metre Trail (Kuyruk) mesafesine oturana dek süzülür. Eğer 90 derecelik açısal taşma olursa hedefi beklemek için tam kanat kırıp pürüzsüz **Loiter (Bekleme Dairesi)** çizer.
+
+### 🖥️ 5. YOLO & Savaş Vizörü (HUD / OSD)
+Otonomi yapısının ne düşündüğünü kameradan interaktif görmek için OpenCV tabanlı `yolo_arayuz.py` düğümü geliştirildi.
+* 🔻 **[ Kırmızı ]**: Hedef kameradan (FOV) kopuksa uyarı verir.
+* 🟨 **[ TESPİT EDİLDİ ]**: Hedef vizöre ilk 1 saniye girdiğinde sarı renkli dinamik kutu atar.
+* 🟩 **[ TAKİP EDİLİYOR ]**: 1 saniyeden uzun kesintisiz takiplerde kilitlenir yeşil vizöre geçer.
+
+### 📊 6. Telemetri Analizi
+Uçağa müdahale etmeyen pasif dinleyici `ucus_loglari.py`, DDS QoS profillerini (Best-Effort) sömürerek Quaternion matematiklerinden Euler Rolllarına, uçağın NED (North-East-Down) hız asimptotlarına kadar tüm anlık telemetriyi **2 Hz frekans ile temiz HUD formatında yansıtır.**
+
+---
+
+## 🛠️ Kurulum
 
 ```bash
-# Windows
-setup.bat
+# 1. Projeyi klonlayın
+git clone https://github.com/thesaidd/iha_tespit_sim.git
+cd iha_tespit_sim
 
-# Linux/Mac
-pip install -r requirements.txt
-cp ../yolo11m-uav.pt .
+# 2. Gerekli kütüphaneleri yükleyin (Eğer yoksa)
+sudo apt install ros-humble-cv-bridge
+pip install opencv-python numpy
 ```
 
-### 2. Test (Gazebo olmadan)
+*(Sistemin PX4 Sitl, MicroXRCEAgent ve ROS 2 ortamlarına uygun olarak derlendiği varsayılmıştır.)*
 
+---
+
+## 🚀 Sistemi Çalıştırma (Adım Adım Gece Uçuşu)
+
+Sistemi ateşlemek için terminalleri sırasıyla açın:
+
+**Terminal 1:** (DDS Köprüsü)
 ```bash
-# Webcam ile test
-python sim_test.py --source 0
-
-# Sentetik "lider İHA" simülasyonu + PID kontrolü
-python gazebo_test.py
-
-# Video dosyası ile
-python sim_test.py --source ornek.mp4
+MicroXRCEAgent udp4 -p 8888
 ```
 
----
-
-## 🔗 Simülatöre Entegrasyon
-
-Simülatör kodunuzdan sadece bu iki satır yeterli:
-
-```python
-from nesne_tespit import nesne_tespit_sistemi
-
-is_detected, cx, cy = nesne_tespit_sistemi(frame)
-```
-
-| Parametre    | Tip        | Açıklama |
-|-------------|-----------|----------|
-| `frame`     | `np.ndarray` | Kameradan gelen BGR görüntüsü |
-| `is_detected` | `bool`   | `True` = hedef var |
-| `cx`        | `int`     | Hedefin X piksel koordinatı (0 = sol kenar) |
-| `cy`        | `int`     | Hedefin Y piksel koordinatı (0 = üst kenar) |
-
-### Hata Hesaplama (PID için)
-
-```python
-is_detected, cx, cy = nesne_tespit_sistemi(frame)
-
-if is_detected:
-    # Görüntü merkezinden sapma
-    hata_x = cx - frame.shape[1] // 2   # + sağda, - solda
-    hata_y = cy - frame.shape[0] // 2   # + aşağıda, - yukarıda
-
-    # PID kontrolcünüze verin:
-    roll_komutu  = pid_x.compute(hata_x)
-    pitch_komutu = pid_y.compute(hata_y)
-```
-
----
-
-## 🤖 ROS2 / Gazebo Entegrasyonu
-
-### Yayınlanan Konular
-
-| Konu | Mesaj Tipi | Açıklama |
-|------|-----------|----------|
-| `/target/is_detected` | `std_msgs/Bool` | Hedef var mı? |
-| `/target/center` | `std_msgs/Int32MultiArray` | `[cx, cy]` |
-| `/target/debug_image` | `sensor_msgs/Image` | Görsel çıktı |
-
-### Node Başlatma
-
+**Terminal 2:** (Avcı İHA - Hunter)
 ```bash
-# ROS2 ortamında
-ros2 run uav_detection ros2_node
-
-# veya doğrudan
-python ros2_node.py
+cd ~/PX4-Autopilot
+PX4_GZ_WORLD=default PX4_GZ_POSE="0,0,0.5,0,0,0" PX4_SYS_AUTOSTART=4008 make px4_sitl gz_advanced_plane
+# (Açıldıktan sonra DDS köprüsünü çalıştırın)
+# pxh> uxrce_dds_client start -t udp -p 8888
 ```
 
-Node otomatik olarak `/camera/image_raw` konusuna abone olur.
-
----
-
-## ⚙️ Ayarlar
-
-`detection_core/config.py` dosyasındaki değerleri değiştirerek sistemi ayarlayın:
-
-```python
-# Model
-MODEL_PATH     = 'yolo11m-uav.pt'
-CONF_THRESHOLD = 0.30        # Güven eşiği (düşürünce daha fazla tespit)
-
-# Tracker hızı
-TRACKER_TYPE   = 'MOSSE'     # 'MOSSE'=hızlı | 'KCF'=dengeli | 'CSRT'=hassas
-
-# Kalman
-USE_KALMAN     = True        # Konum yumuşatma açık/kapalı
-
-# Yeniden doğrulama
-REINIT_INTERVAL = 30         # Her 30 frame'de bir YOLO ile kontrol
+**Terminal 3:** (Hedef İHA - 50m İleride)
+```bash
+cd ~/PX4-Autopilot
+PX4_GZ_WORLD=default PX4_GZ_POSE="50,0,0.5,0,0,0" PX4_SYS_AUTOSTART=4008 instance=1 ./build/px4_sitl_default/bin/px4 -i 1
+# pxh> uxrce_dds_client start -t udp -p 8888
 ```
 
----
-
-## 🔬 Sistem Mimarisi
-
-```
-frame (BGR)
-    │
-    ▼
-[UAVDetector]  ─── YOLO11 inference ───► tespitler listesi
-    │
-    ▼
-[RobustTracker]  ─── OpenCV MOSSE ──►  bbox (x1,y1,x2,y2) 
-    │                (her frame)
-    ▼
-[UAVKalmanFilter]  ── gürültü süz ──►  cx_filtered, cy_filtered
-    │
-    ▼
-return (is_detected: bool, cx: int, cy: int)
+**Terminal 4:** (Kamera Bridge İletişimi)
+```bash
+source ~/ros2_ws/install/setup.bash
+# Konfigürasyonu kendi sisteminizin Gazebo yapısına göre ayarlayın.
+ros2 run ros_gz_bridge parameter_bridge "/world/default/model/advanced_plane_0/link/base_link/sensor/camera/image@sensor_msgs/msg/Image[gz.msgs.Image" --ros-args -r /world/default/model/advanced_plane_0/link/base_link/sensor/camera/image:=/uav0/camera
 ```
 
-**Akıllı Mod Geçişi:**
-- İlk tespitte → YOLO çalışır, Tracker başlatılır
-- Sonraki framelerde → sadece Tracker çalışır (hızlı!)
-- Her `REINIT_INTERVAL` frame'de → YOLO tekrar doğrular
-- Tracker kaybederse → otomatik tespit moduna döner
-
----
-
-## 📋 Gereksinimler
-
-```
-ultralytics >= 8.0.0   (YOLO)
-opencv-python >= 4.8.0
-numpy >= 1.24.0
-filterpy >= 1.4.5      (Kalman)
+**Terminal 5:** (Otonom Güdüm Zekası)
+```bash
+cd ~/iha_tespit_sim
+source ~/ros2_ws/install/setup.bash
+python3 tracking_control.py
 ```
 
-ROS2 entegrasyonu için ek olarak:
+**Terminal 6:** (Savaş Vizörü OSD)
+```bash
+cd ~/iha_tespit_sim
+source ~/ros2_ws/install/setup.bash
+python3 yolo_arayuz.py
 ```
-rclpy
-cv_bridge
-sensor_msgs
-std_msgs
+
+**Terminal 7:** (Telemetri Analiz - İsteğe Bağlı)
+```bash
+cd ~/iha_tespit_sim
+source ~/ros2_ws/install/setup.bash
+python3 ucus_loglari.py
 ```
 
----
-
-## ℹ️ Orijinal Proje
-
-Bu klasör `Tübitak/` projesinin simülasyon entegrasyonuna özel alt kümesidir.  
-Orijinal proje: test logger, ekran yakalama, gelişmiş görselleştirme ve  
-arşivleme özellikleri içerir. Bu versiyonda sadece tespit çekirdeği vardır.
+<div align="center">
+  <br>
+  <i>Yusuf | Geliştirici Tarafından ROS 2 ile Hayata Geçirilmiştir.</i>
+</div>
