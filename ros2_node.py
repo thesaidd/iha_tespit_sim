@@ -57,7 +57,7 @@ class UAVDetectionNode(Node if ROS_AVAILABLE else object):
         # Abone ol
         self.sub_image = self.create_subscription(
             Image,
-            '/camera/image_raw',      # ← Gazebo kamera konusu
+            '/uav0/camera',      # ← Gazebo kamera konusu
             self.image_callback,
             10
         )
@@ -68,7 +68,7 @@ class UAVDetectionNode(Node if ROS_AVAILABLE else object):
         self.pub_debug    = self.create_publisher(Image,           '/target/debug_image',  10)
 
         self.get_logger().info("UAV Detection Node başlatıldı.")
-        self.get_logger().info("Abone: /camera/image_raw")
+        self.get_logger().info("Abone: /uav0/camera")
         self.get_logger().info("Yayın: /target/is_detected | /target/center")
 
     def image_callback(self, msg: 'Image'):
